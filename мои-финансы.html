@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мои финансы</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --text: #1e2430;
+    --muted: #7a8499;
+    --accent: #3b6ef6;
+    --accent-dark: #2b57cf;
+    --green: #18a058;
+    --red: #e02424;
+    --orange: #f59e0b;
+    --border: #e6e9f2;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(30, 36, 48, .06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.45;
+    padding: 16px;
+  }
+  .container { max-width: 1080px; margin: 0 auto; }
+  header.app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 8px; margin-bottom: 18px;
+  }
+  header.app-header h1 { font-size: 1.5rem; font-weight: 700; }
+  header.app-header .subtitle { color: var(--muted); font-size: .85rem; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+  }
+  .card h2 { font-size: 1.05rem; margin-bottom: 12px; }
+  .card .hint { color: var(--muted); font-size: .8rem; margin-top: 8px; }
+
+  /* Месяц-навигатор */
+  .month-nav {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    margin-bottom: 16px;
+  }
+  .month-nav button {
+    border: 1px solid var(--border); background: var(--card);
+    width: 38px; height: 38px; border-radius: 50%;
+    font-size: 1.1rem; cursor: pointer; color: var(--text);
+    transition: background .15s;
+  }
+  .month-nav button:hover { background: #eef2fb; }
+  .month-nav .label { font-weight: 600; min-width: 130px; text-align: center; text-transform: capitalize; }
+
+  /* Сводка */
+  .summary { display: flex; gap: 12px; flex-wrap: wrap; }
+  .summary .item {
+    flex: 1; min-width: 90px; text-align: center;
+    padding: 10px 6px; border-radius: 10px; background: #f7f9fd;
+  }
+  .summary .item .cap { font-size: .75rem; color: var(--muted); }
+  .summary .item .val { font-size: 1.05rem; font-weight: 700; margin-top: 2px; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .neu { color: var(--text); }
+
+  /* Формы */
+  label.field { display: block; margin-bottom: 10px; font-size: .82rem; color: var(--muted); }
+  input[type="text"], input[type="number"], input[type="date"], select {
+    width: 100%; padding: 10px 12px; margin-top: 4px;
+    border: 1px solid var(--border); border-radius: 10px;
+    font-size: .95rem; font-family: inherit; color: var(--text);
+    background: #fff; outline: none; transition: border-color .15s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .type-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
+  .type-toggle button {
+    flex: 1; padding: 10px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--border); background: #f7f9fd;
+    font-size: .95rem; font-weight: 600; color: var(--muted);
+    transition: all .15s;
+  }
+  .type-toggle button.active-exp { background: #fdecec; border-color: var(--red); color: var(--red); }
+  .type-toggle button.active-inc { background: #e8f7ef; border-color: var(--green); color: var(--green); }
+  .btn {
+    display: inline-block; width: 100%; padding: 11px;
+    border: none; border-radius: 10px; cursor: pointer;
+    background: var(--accent); color: #fff; font-size: .95rem; font-weight: 600;
+    transition: background .15s;
+  }
+  .btn:hover { background: var(--accent-dark); }
+  .btn.secondary { background: #eef2fb; color: var(--accent-dark); }
+  .btn.secondary:hover { background: #dfe8fa; }
+  .btn.danger { background: #fdecec; color: var(--red); }
+  .btn.danger:hover { background: #fbdcdc; }
+
+  /* Список операций */
+  .ops-list { list-style: none; max-height: 420px; overflow-y: auto; }
+  .ops-list li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 4px; border-bottom: 1px solid var(--border);
+  }
+  .ops-list li:last-child { border-bottom: none; }
+  .ops-list .info { flex: 1; min-width: 0; }
+  .ops-list .cat { font-weight: 600; font-size: .92rem; }
+  .ops-list .meta { font-size: .78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ops-list .sum { font-weight: 700; white-space: nowrap; }
+  .del-btn {
+    border: none; background: none; cursor: pointer; color: #c3c9d6;
+    font-size: 1.05rem; padding: 4px 6px; border-radius: 6px;
+  }
+  .del-btn:hover { color: var(--red); background: #fdecec; }
+  .empty { text-align: center; color: var(--muted); padding: 18px 0; font-size: .9rem; }
+
+  /* Прогресс-бары */
+  .progress-track {
+    height: 12px; border-radius: 8px; background: #edf0f7;
+    overflow: hidden; margin-top: 8px;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 8px;
+    transition: width .3s ease;
+  }
+  .fill-ok { background: var(--accent); }
+  .fill-warn { background: var(--orange); }
+  .fill-over { background: var(--red); }
+  .progress-caption { display: flex; justify-content: space-between; font-size: .82rem; margin-top: 6px; color: var(--muted); }
+  .over-label { color: var(--red); font-weight: 700; }
+  .row-flex { display: flex; gap: 8px; align-items: flex-end; }
+  .row-flex > * { flex: 1; }
+  .goal-done {
+    background: #e8f7ef; border: 1px solid #bfe8d2; color: var(--green);
+    padding: 10px 12px; border-radius: 10px; font-weight: 600; font-size: .9rem;
+    text-align: center; margin-bottom: 10px;
+  }
+
+  /* Инвестиции */
+  .inv-table { width: 100%; border-collapse: collapse; font-size: .87rem; }
+  .inv-table th, .inv-table td { padding: 8px 6px; text-align: right; border-bottom: 1px solid var(--border); }
+  .inv-table th:first-child, .inv-table td:first-child { text-align: left; }
+  .inv-table th { color: var(--muted); font-weight: 600; font-size: .75rem; }
+  .inv-table .edit-price {
+    border: none; background: none; cursor: pointer; font-size: .95rem; color: var(--accent);
+    padding: 2px 4px; border-radius: 6px;
+  }
+  .inv-table .edit-price:hover { background: #eef2fb; }
+  .inv-summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .disclaimer { font-size: .75rem; color: var(--muted); margin-top: 10px; }
+
+  .chart-wrap { position: relative; height: 260px; }
+  .chart-empty { display: flex; align-items: center; justify-content: center; height: 260px; color: var(--muted); font-size: .9rem; text-align: center; padding: 0 20px; }
+
+  .span-2 { grid-column: span 2; }
+  @media (max-width: 720px) {
+    .span-2 { grid-column: span 1; }
+    body { padding: 10px; }
+    .inv-table-wrap { overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header class="app-header">
+    <div>
+      <h1>Мои финансы</h1>
+      <div class="subtitle">Личный учёт доходов, расходов, целей и инвестиций</div>
+    </div>
+  </header>
+
+  <div class="month-nav">
+    <button id="prevMonth" aria-label="Предыдущий месяц">‹</button>
+    <div class="label" id="monthLabel"></div>
+    <button id="nextMonth" aria-label="Следующий месяц">›</button>
+  </div>
+
+  <div class="grid">
+
+    <!-- Сводка за месяц -->
+    <div class="card">
+      <h2>Сводка за месяц</h2>
+      <div class="summary">
+        <div class="item"><div class="cap">Доходы</div><div class="val pos" id="sumIncome">0 ₸</div></div>
+        <div class="item"><div class="cap">Расходы</div><div class="val neg" id="sumExpense">0 ₸</div></div>
+        <div class="item"><div class="cap">Остаток</div><div class="val neu" id="sumBalance">0 ₸</div></div>
+      </div>
+    </div>
+
+    <!-- Лимит на месяц -->
+    <div class="card">
+      <h2>Лимит расходов на месяц</h2>
+      <div id="budgetView"></div>
+    </div>
+
+    <!-- Новая операция -->
+    <div class="card">
+      <h2>Новая операция</h2>
+      <form id="opForm">
+        <div class="type-toggle">
+          <button type="button" id="typeExp" class="active-exp">Расход</button>
+          <button type="button" id="typeInc">Доход</button>
+        </div>
+        <label class="field">Сумма, ₸
+          <input type="number" id="opAmount" min="0.01" step="0.01" required placeholder="Например, 5000">
+        </label>
+        <label class="field">Категория
+          <select id="opCategory" required></select>
+        </label>
+        <label class="field">Дата
+          <input type="date" id="opDate" required>
+        </label>
+        <label class="field">Комментарий (необязательно)
+          <input type="text" id="opComment" maxlength="120" placeholder="Например, обед с коллегами">
+        </label>
+        <button type="submit" class="btn">Добавить</button>
+      </form>
+    </div>
+
+    <!-- График -->
+    <div class="card">
+      <h2>Расходы по категориям</h2>
+      <div class="chart-wrap" id="chartWrap"><canvas id="expChart"></canvas></div>
+      <div class="chart-empty" id="chartEmpty" style="display:none">За этот месяц расходов пока нет — добавьте первую операцию.</div>
+    </div>
+
+    <!-- Цель накоплений -->
+    <div class="card">
+      <h2>Цель накоплений</h2>
+      <div id="goalView"></div>
+    </div>
+
+    <!-- Операции -->
+    <div class="card">
+      <h2>Операции за месяц</h2>
+      <ul class="ops-list" id="opsList"></ul>
+      <div class="empty" id="opsEmpty" style="display:none">Операций за этот месяц нет.</div>
+    </div>
+
+    <!-- Инвестиции -->
+    <div class="card span-2">
+      <h2>Инвестиции в ценные бумаги</h2>
+      <div class="inv-summary" id="invSummary"></div>
+      <div class="inv-table-wrap">
+        <table class="inv-table" id="invTableWrap" style="display:none">
+          <thead>
+            <tr>
+              <th>Бумага</th><th>Кол-во</th><th>Цена покупки</th><th>Текущая цена</th>
+              <th>Стоимость</th><th>Прибыль/убыток</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="invTable"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="invEmpty">Пока нет ни одной бумаги. Добавьте первую позицию ниже.</div>
+
+      <h2 style="margin-top:18px;font-size:.95rem">Добавить бумагу</h2>
+      <form id="invForm">
+        <div class="row-flex">
+          <label class="field">Название
+            <input type="text" id="invName" required maxlength="60" placeholder="Например, KEGC">
+          </label>
+          <label class="field">Количество
+            <input type="number" id="invQty" min="1" step="1" required placeholder="10">
+          </label>
+        </div>
+        <div class="row-flex">
+          <label class="field">Цена покупки за штуку, ₸
+            <input type="number" id="invBuy" min="0.01" step="0.01" required placeholder="1200">
+          </label>
+          <label class="field">Текущая цена за штуку, ₸
+            <input type="number" id="invCur" min="0.01" step="0.01" required placeholder="1350">
+          </label>
+        </div>
+        <button type="submit" class="btn">Добавить позицию</button>
+      </form>
+      <div class="disclaimer">Приложение ведёт только учёт и не даёт инвестиционных рекомендаций. Котировки не подгружаются автоматически — обновляйте текущую цену вручную (кнопка ✎), сверяясь с приложением вашего брокера.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var STORAGE_KEY = 'myFinance.v1';
+
+  var CATEGORIES = {
+    expense: ['Продукты', 'Кафе и рестораны', 'Транспорт', 'Жильё и коммуналка', 'Связь и интернет',
+              'Здоровье', 'Одежда', 'Развлечения', 'Образование', 'Дети', 'Подарки', 'Прочее'],
+    income: ['Зарплата', 'Подработка', 'Подарки', 'Возврат', 'Прочий доход']
+  };
+
+  var CHART_COLORS = ['#3b6ef6', '#f59e0b', '#18a058', '#e02424', '#8b5cf6', '#06b6d4',
+                      '#ec4899', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#a855f7'];
+
+  var MONTHS_RU = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
+                   'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+
+  /* ---------- Состояние ---------- */
+
+  function defaultState() {
+    return {
+      operations: [],          // {id, type, amount, category, comment, date}
+      budgetLimit: null,       // число или null
+      goal: null,              // {name, target, saved}
+      investments: []          // {id, name, qty, buyPrice, curPrice}
+    };
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultState();
+      var parsed = JSON.parse(raw);
+      var s = defaultState();
+      if (Array.isArray(parsed.operations)) s.operations = parsed.operations;
+      if (typeof parsed.budgetLimit === 'number' || parsed.budgetLimit === null) s.budgetLimit = parsed.budgetLimit;
+      if (parsed.goal && typeof parsed.goal === 'object') s.goal = parsed.goal;
+      if (Array.isArray(parsed.investments)) s.investments = parsed.investments;
+      return s;
+    } catch (e) {
+      return defaultState();
+    }
+  }
+
+  var state = loadState();
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  }
+
+  /* ---------- Утилиты ---------- */
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function fmt(n) {
+    var v = Math.round(n * 100) / 100;
+    var parts = Math.abs(v).toFixed(2).split('.');
+    var intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    var frac = parts[1] === '00' ? '' : ',' + parts[1];
+    return (v < 0 ? '−' : '') + intPart + frac + ' ₸';
+  }
+
+  function fmtPct(n) {
+    return (n > 0 ? '+' : '') + (Math.round(n * 10) / 10).toString().replace('.', ',') + '%';
+  }
+
+  function todayStr() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  /* ---------- Текущий месяц ---------- */
+
+  var now = new Date();
+  var viewYear = now.getFullYear();
+  var viewMonth = now.getMonth(); // 0-11
+
+  function monthKey(y, m) { return y + '-' + String(m + 1).padStart(2, '0'); }
+
+  function opsOfMonth() {
+    var key = monthKey(viewYear, viewMonth);
+    return state.operations
+      .filter(function (o) { return typeof o.date === 'string' && o.date.slice(0, 7) === key; })
+      .sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+  }
+
+  /* ---------- Элементы ---------- */
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var monthLabel = $('monthLabel');
+  var opForm = $('opForm');
+  var opAmount = $('opAmount'), opCategory = $('opCategory'), opDate = $('opDate'), opComment = $('opComment');
+  var typeExp = $('typeExp'), typeInc = $('typeInc');
+  var opsList = $('opsList'), opsEmpty = $('opsEmpty');
+  var sumIncome = $('sumIncome'), sumExpense = $('sumExpense'), sumBalance = $('sumBalance');
+  var budgetView = $('budgetView');
+  var goalView = $('goalView');
+  var invSummary = $('invSummary'), invTable = $('invTable'), invTableWrap = $('invTableWrap'), invEmpty = $('invEmpty');
+  var invForm = $('invForm');
+  var invName = $('invName'), invQty = $('invQty'), invBuy = $('invBuy'), invCur = $('invCur');
+
+  var currentType = 'expense';
+
+  /* ---------- Переключатель типа операции ---------- */
+
+  function fillCategories() {
+    opCategory.innerHTML = '';
+    CATEGORIES[currentType].forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      opCategory.appendChild(opt);
+    });
+  }
+
+  function setType(t) {
+    currentType = t;
+    typeExp.className = t === 'expense' ? 'active-exp' : '';
+    typeInc.className = t === 'income' ? 'active-inc' : '';
+    fillCategories();
+  }
+
+  typeExp.addEventListener('click', function () { setType('expense'); });
+  typeInc.addEventListener('click', function () { setType('income'); });
+
+  /* ---------- Месяц-навигация ---------- */
+
+  $('prevMonth').addEventListener('click', function () {
+    viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    renderMonth();
+  });
+  $('nextMonth').addEventListener('click', function () {
+    viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    renderMonth();
+  });
+
+  /* ---------- Операции ---------- */
+
+  opForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var amount = parseFloat(opAmount.value);
+    if (!isFinite(amount) || amount <= 0) return;
+    var op = {
+      id: uid(),
+      type: currentType,
+      amount: amount,
+      category: opCategory.value,
+      comment: opComment.value.trim(),
+      date: opDate.value || todayStr()
+    };
+    state.operations.push(op);
+    save();
+    // Переключаемся на месяц добавленной операции, если он отличается
+    var d = op.date.slice(0, 7);
+    if (d !== monthKey(viewYear, viewMonth)) {
+      var parts = d.split('-');
+      viewYear = +parts[0]; viewMonth = +parts[1] - 1;
+    }
+    opAmount.value = ''; opComment.value = '';
+    renderMonth();
+  });
+
+  function deleteOperation(id) {
+    state.operations = state.operations.filter(function (o) { return o.id !== id; });
+    save();
+    renderMonth();
+  }
+
+  /* ---------- График ---------- */
+
+  var chart = null;
+
+  function renderChart(ops) {
+    var byCat = {};
+    ops.forEach(function (o) {
+      if (o.type === 'expense') byCat[o.category] = (byCat[o.category] || 0) + o.amount;
+    });
+    var labels = Object.keys(byCat);
+    var hasData = labels.length > 0;
+
+    $('chartWrap').style.display = hasData ? '' : 'none';
+    $('chartEmpty').style.display = hasData ? 'none' : 'flex';
+
+    if (!hasData) {
+      if (chart) { chart.destroy(); chart = null; }
+      return;
+    }
+    if (typeof Chart === 'undefined') {
+      $('chartWrap').style.display = 'none';
+      $('chartEmpty').style.display = 'flex';
+      $('chartEmpty').textContent = 'График недоступен без подключения к интернету.';
+      return;
+    }
+
+    var data = labels.map(function (l) { return byCat[l]; });
+    var colors = labels.map(function (_, i) { return CHART_COLORS[i % CHART_COLORS.length]; });
+
+    if (chart) chart.destroy();
+    chart = new Chart($('expChart'), {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { boxWidth: 14, font: { size: 12 } } },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) { return ' ' + ctx.label + ': ' + fmt(ctx.parsed); }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /* ---------- Лимит ---------- */
+
+  function renderBudget(totalExpense) {
+    var limit = state.budgetLimit;
+    if (limit === null || !(limit > 0)) {
+      budgetView.innerHTML =
+        '<form id="budgetForm">' +
+        '<label class="field">Лимит расходов на месяц, ₸' +
+        '<input type="number" id="budgetInput" min="1" step="1" required placeholder="Например, 300000"></label>' +
+        '<button type="submit" class="btn">Установить лимит</button></form>';
+      $('budgetForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var v = parseFloat($('budgetInput').value);
+        if (isFinite(v) && v > 0) { state.budgetLimit = v; save(); renderMonth(); }
+      });
+      return;
+    }
+
+    var pct = (totalExpense / limit) * 100;
+    var fillClass = pct >= 100 ? 'fill-over' : (pct >= 70 ? 'fill-warn' : 'fill-ok');
+    var widthPct = Math.min(pct, 100);
+    var overNote = pct >= 100 ? ' <span class="over-label">превышение!</span>' : '';
+
+    budgetView.innerHTML =
+      '<div>Потрачено <b>' + fmt(totalExpense) + '</b> из <b>' + fmt(limit) + '</b>' + overNote + '</div>' +
+      '<div class="progress-track"><div class="progress-fill ' + fillClass + '" style="width:' + widthPct + '%"></div></div>' +
+      '<div class="progress-caption"><span>' + Math.round(pct) + '%</span><span>лимит ' + fmt(limit) + '</span></div>' +
+      '<div style="display:flex;gap:8px;margin-top:12px">' +
+      '<button class="btn secondary" id="budgetChange" style="flex:1">Изменить</button>' +
+      '<button class="btn danger" id="budgetRemove" style="flex:1">Снять лимит</button></div>';
+
+    $('budgetChange').addEventListener('click', function () {
+      var v = prompt('Новый лимит расходов на месяц, ₸:', String(limit));
+      if (v === null) return;
+      var n = parseFloat(v);
+      if (isFinite(n) && n > 0) { state.budgetLimit = n; save(); renderMonth(); }
+    });
+    $('budgetRemove').addEventListener('click', function () {
+      if (confirm('Снять лимит расходов на месяц?')) {
+        state.budgetLimit = null; save(); renderMonth();
+      }
+    });
+  }
+
+  /* ---------- Цель ---------- */
+
+  function renderGoal() {
+    var g = state.goal;
+    if (!g) {
+      goalView.innerHTML =
+        '<form id="goalForm">' +
+        '<label class="field">Название цели' +
+        '<input type="text" id="goalName" required maxlength="60" placeholder="Например, Отпуск"></label>' +
+        '<label class="field">Сумма цели, ₸' +
+        '<input type="number" id="goalTarget" min="1" step="1" required placeholder="Например, 500000"></label>' +
+        '<button type="submit" class="btn">Поставить цель</button></form>';
+      $('goalForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var name = $('goalName').value.trim();
+        var target = parseFloat($('goalTarget').value);
+        if (!name || !isFinite(target) || target <= 0) return;
+        state.goal = { name: name, target: target, saved: 0 };
+        save(); renderGoal();
+      });
+      return;
+    }
+
+    var pct = Math.min((g.saved / g.target) * 100, 100);
+    var done = g.saved >= g.target;
+
+    var html = '';
+    if (done) {
+      html += '<div class="goal-done">🎉 Поздравляем! Цель «' + escapeHtml(g.name) + '» достигнута!</div>';
+    }
+    html +=
+      '<div style="margin-bottom:6px"><b>' + escapeHtml(g.name) + '</b></div>' +
+      '<div>Накоплено <b>' + fmt(g.saved) + '</b> из <b>' + fmt(g.target) + '</b></div>' +
+      '<div class="progress-track"><div class="progress-fill ' + (done ? 'fill-ok' : 'fill-ok') + '" style="width:' + pct + '%;background:' + (done ? 'var(--green)' : 'var(--accent)') + '"></div></div>' +
+      '<div class="progress-caption"><span>' + Math.round(pct) + '%</span><span>осталось ' + fmt(Math.max(g.target - g.saved, 0)) + '</span></div>' +
+      '<form id="goalAddForm" style="margin-top:12px">' +
+      '<label class="field">Внести в копилку, ₸' +
+      '<input type="number" id="goalAdd" min="0.01" step="0.01" required placeholder="Сумма"></label>' +
+      '<button type="submit" class="btn">Внести</button></form>' +
+      '<div style="display:flex;gap:8px;margin-top:8px">' +
+      '<button class="btn secondary" id="goalEdit" style="flex:1">Изменить цель</button>' +
+      '<button class="btn danger" id="goalRemove" style="flex:1">Удалить</button></div>';
+
+    goalView.innerHTML = html;
+
+    $('goalAddForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var v = parseFloat($('goalAdd').value);
+      if (isFinite(v) && v > 0) {
+        state.goal.saved = Math.round((state.goal.saved + v) * 100) / 100;
+        save(); renderGoal();
+      }
+    });
+    $('goalEdit').addEventListener('click', function () {
+      var name = prompt('Название цели:', g.name);
+      if (name === null) return;
+      name = name.trim() || g.name;
+      var t = prompt('Сумма цели, ₸:', String(g.target));
+      if (t === null) return;
+      var target = parseFloat(t);
+      if (!isFinite(target) || target <= 0) { alert('Введите корректную сумму.'); return; }
+      state.goal.name = name;
+      state.goal.target = target;
+      save(); renderGoal();
+    });
+    $('goalRemove').addEventListener('click', function () {
+      if (confirm('Удалить цель вместе с накопленной суммой?')) {
+        state.goal = null; save(); renderGoal();
+      }
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* ---------- Инвестиции ---------- */
+
+  function renderInvestments() {
+    var inv = state.investments;
+
+    if (inv.length === 0) {
+      invTableWrap.style.display = 'none';
+      invEmpty.style.display = '';
+      invSummary.innerHTML = '';
+      return;
+    }
+    invTableWrap.style.display = '';
+    invEmpty.style.display = 'none';
+
+    var totalInvested = 0, totalCurrent = 0;
+    invTable.innerHTML = '';
+    inv.forEach(function (p) {
+      var invested = p.qty * p.buyPrice;
+      var current = p.qty * p.curPrice;
+      var pl = current - invested;
+      totalInvested += invested;
+      totalCurrent += current;
+
+      var tr = document.createElement('tr');
+      var plClass = pl >= 0 ? 'pos' : 'neg';
+      tr.innerHTML =
+        '<td><b>' + escapeHtml(p.name) + '</b></td>' +
+        '<td>' + p.qty + '</td>' +
+        '<td>' + fmt(p.buyPrice) + '</td>' +
+        '<td>' + fmt(p.curPrice) + ' <button class="edit-price" data-id="' + p.id + '" title="Обновить цену">✎</button></td>' +
+        '<td>' + fmt(current) + '</td>' +
+        '<td class="' + plClass + '">' + fmt(pl) + '</td>' +
+        '<td><button class="del-btn" data-id="' + p.id + '" title="Удалить позицию">✕</button></td>';
+      invTable.appendChild(tr);
+    });
+
+    var totalPL = totalCurrent - totalInvested;
+    var pctPL = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
+    var plClass = totalPL >= 0 ? 'pos' : 'neg';
+
+    invSummary.innerHTML =
+      '<div class="summary" style="flex:1">' +
+      '<div class="item"><div class="cap">Всего вложено</div><div class="val neu">' + fmt(totalInvested) + '</div></div>' +
+      '<div class="item"><div class="cap">Текущая стоимость</div><div class="val neu">' + fmt(totalCurrent) + '</div></div>' +
+      '<div class="item"><div class="cap">Доходность</div><div class="val ' + plClass + '">' + fmt(totalPL) + '<br><span style="font-size:.85rem">' + fmtPct(pctPL) + '</span></div></div>' +
+      '</div>';
+
+    invTable.querySelectorAll('.del-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Удалить позицию?')) return;
+        state.investments = state.investments.filter(function (p) { return p.id !== btn.getAttribute('data-id'); });
+        save(); renderInvestments();
+      });
+    });
+    invTable.querySelectorAll('.edit-price').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var p = state.investments.find(function (x) { return x.id === btn.getAttribute('data-id'); });
+        if (!p) return;
+        var v = prompt('Текущая цена за штуку «' + p.name + '», ₸:', String(p.curPrice));
+        if (v === null) return;
+        var n = parseFloat(v);
+        if (isFinite(n) && n > 0) { p.curPrice = n; save(); renderInvestments(); }
+      });
+    });
+  }
+
+  invForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = invName.value.trim();
+    var qty = parseInt(invQty.value, 10);
+    var buy = parseFloat(invBuy.value);
+    var cur = parseFloat(invCur.value);
+    if (!name || !isFinite(qty) || qty <= 0 || !isFinite(buy) || buy <= 0 || !isFinite(cur) || cur <= 0) return;
+    state.investments.push({ id: uid(), name: name, qty: qty, buyPrice: buy, curPrice: cur });
+    save();
+    invName.value = ''; invQty.value = ''; invBuy.value = ''; invCur.value = '';
+    renderInvestments();
+  });
+
+  /* ---------- Рендер месяца ---------- */
+
+  function renderMonth() {
+    monthLabel.textContent = MONTHS_RU[viewMonth] + ' ' + viewYear;
+
+    var ops = opsOfMonth();
+    var income = 0, expense = 0;
+    ops.forEach(function (o) {
+      if (o.type === 'income') income += o.amount; else expense += o.amount;
+    });
+    var balance = income - expense;
+
+    sumIncome.textContent = fmt(income);
+    sumExpense.textContent = fmt(expense);
+    sumBalance.textContent = fmt(balance);
+    sumBalance.className = 'val ' + (balance > 0 ? 'pos' : (balance < 0 ? 'neg' : 'neu'));
+
+    // Список операций
+    opsList.innerHTML = '';
+    opsEmpty.style.display = ops.length ? 'none' : '';
+    ops.forEach(function (o) {
+      var li = document.createElement('li');
+      var sign = o.type === 'income' ? '+' : '−';
+      var cls = o.type === 'income' ? 'pos' : 'neg';
+      var dateStr = o.date.slice(8, 10) + '.' + o.date.slice(5, 7) + '.' + o.date.slice(0, 4);
+      li.innerHTML =
+        '<div class="info"><div class="cat">' + escapeHtml(o.category) + '</div>' +
+        '<div class="meta">' + dateStr + (o.comment ? ' · ' + escapeHtml(o.comment) : '') + '</div></div>' +
+        '<div class="sum ' + cls + '">' + sign + ' ' + fmt(o.amount) + '</div>' +
+        '<button class="del-btn" title="Удалить операцию">✕</button>';
+      li.querySelector('.del-btn').addEventListener('click', function () { deleteOperation(o.id); });
+      opsList.appendChild(li);
+    });
+
+    renderChart(ops);
+    renderBudget(expense);
+  }
+
+  /* ---------- Инициализация ---------- */
+
+  opDate.value = todayStr();
+  setType('expense');
+  renderMonth();
+  renderGoal();
+  renderInvestments();
+
+})();
+</script>
+</body>
+</html>
